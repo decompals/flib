@@ -111,7 +111,8 @@ fn print_relocs(obj_file: &object::File) {
 // const TEST_FILES: &[&str] = &["llcvt"];
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let romfile = fs::read("../pokemonsnap/baserom.z64")?;
+    let rompath = std::env::args().nth(1).expect("no rompath given");
+    let romfile = fs::read(rompath)?;
     let mut rom_words = Vec::new();
 
     words_from_be_bytes(&romfile[0x1000..0x101000], &mut rom_words);
