@@ -17,3 +17,6 @@ Cargo.lock
 *.gv
 *.gv.png
 .DS_Store
+
+# custom
+flib.txt
