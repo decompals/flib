@@ -3,8 +3,13 @@ use object::{
 };
 use std::error::Error;
 use std::fs;
+use std::io;
+use std::path::PathBuf;
 
 mod libultra;
+mod splat;
+
+const TAB: &str = "    ";
 
 const FULL_MASK: u32 = 0xFF_FF_FF_FF;
 const ROUGH_MASK: u32 = 0xFC_00_00_00;
@@ -108,27 +113,49 @@ fn print_relocs(obj_file: &object::File) {
     }
 }
 
+// Write a report containing:
+// - unique files (= 1)
+// - unsure files (> 1)
+// - not found files (0)
+
 // const TEST_FILES: &[&str] = &["llcvt"];
 
-fn main() -> Result<(), Box<dyn Error>> {
-    let rompath = std::env::args().nth(1).expect("no rompath given");
-    let romfile = fs::read(rompath)?;
+fn run(romfile: Vec<u8>, object_paths: Vec<PathBuf>) -> Result<(), Box<dyn Error>> {
     let mut rom_words = Vec::new();
+    let start = 0x1000;
+    let end = start + 0x100000;
 
-    words_from_be_bytes(&romfile[0x1000..0x101000], &mut rom_words);
+    let mut found = Vec::new(); // length = 1
+    let mut ambiguous = Vec::new(); // length > 1
+    let mut not_found = Vec::new(); // length = 0
 
-    for filename in libultra::FILES {
-        let filepath = String::from(libultra::BASEPATH) + filename + ".o";
+    words_from_be_bytes(&romfile[start..end], &mut rom_words);
+
+    for filepath in object_paths {
+        let file_stem = filepath.file_stem().unwrap().to_string_lossy(); // Maybe
         let bin_data = fs::read(&filepath)?;
         let obj_file = object::File::parse(&*bin_data)?;
 
         // print_relocs(&obj_file);
 
         if let Some(section) = obj_file.section_by_name(".text") {
+            if section.size() == 0 {
+                eprintln!("{} has a size-zero .text section, skipping", file_stem);
+                continue;
+            }
+
             let mut words = Vec::new();
             let mut stencil = Vec::new();
 
             words_from_be_bytes(section.data()?, &mut words);
+            if words.iter().all(|elem| *elem == 0) {
+                eprintln!(
+                    "{} has .text section composed of only zeros, skipping",
+                    file_stem
+                );
+                continue;
+            }
+
             make_rough_stencil(section.data()?, &mut stencil);
             assert_eq!(words.len(), stencil.len());
             // for (i, word) in words.iter().enumerate() {
@@ -137,48 +164,100 @@ fn main() -> Result<(), Box<dyn Error>> {
 
             // println!("{:08X?}", &rom_words[0xD68C..0xD68C+0x10]);
 
-            let results = naive_wordsearch(&rom_words, &stencil);
+            let rough_results = naive_wordsearch(&rom_words, &stencil);
 
-            if results.len() > 0 {
-                let mut stencil = Vec::new();
+            if rough_results.len() == 0 {
+                not_found.push(file_stem.to_string());
+                // eprintln!("{} not found in rom", &file_stem);
+                continue;
+            }
 
-                make_precise_stencil(&obj_file, section.data()?, &mut stencil);
-                // for (i, word) in words.iter().enumerate() {
-                //     println!("{:08X} -> {:08X}, {:08X}", word, stencil[i].0, stencil[i].1);
-                // }
+            let mut stencil = Vec::new();
 
-                let mut precise_results = Vec::new();
-                for result in &results {
-                    let index = result / 4;
-                    let mut matches = true;
+            make_precise_stencil(&obj_file, section.data()?, &mut stencil);
+            // for (i, word) in words.iter().enumerate() {
+            //     println!("{:08X} -> {:08X}, {:08X}", word, stencil[i].0, stencil[i].1);
+            // }
 
-                    for (i, instr) in stencil.iter().enumerate() {
-                        // println!(
-                        //     "{:08X}, {:08X}, {:08X}, {}",
-                        //     rom_words[index + i] & instr.1,
-                        //     instr.1,
-                        //     instr.0,
-                        //     rom_words[index + i] & instr.1 != instr.0
-                        // );
-                        if rom_words[index + i] & instr.1 != instr.0 {
-                            matches = false;
-                            break;
-                        }
-                    }
-                    if matches {
-                        precise_results.push(result);
+            let mut precise_results = Vec::new();
+            for result in &rough_results {
+                let index = result / 4;
+                let mut matches = true;
+
+                for (i, instr) in stencil.iter().enumerate() {
+                    // println!(
+                    //     "{:08X}, {:08X}, {:08X}, {}",
+                    //     rom_words[index + i] & instr.1,
+                    //     instr.1,
+                    //     instr.0,
+                    //     rom_words[index + i] & instr.1 != instr.0
+                    // );
+                    if rom_words[index + i] & instr.1 != instr.0 {
+                        matches = false;
+                        break;
                     }
                 }
-
-                println!("{}: {:X?} (precise)", filename, &precise_results);
-            } else {
-                println!("{}: {:X?} (rough)", filename, &results);
+                if matches {
+                    precise_results.push(result + start);
+                }
             }
+            match precise_results.len() {
+                0 => not_found.push(file_stem.to_string()),
+                1 => found.push((file_stem.to_string(), precise_results[0])),
+                _ => ambiguous.push((file_stem.to_string(), precise_results.clone())),
+            }
+
+            // println!("{}: {:X?} (precise)", file_stem, &precise_results);
         } else {
-            eprintln!("Error: {}: no .text section found", &filepath);
+            eprintln!(
+                "Error: {}: no .text section found",
+                &filepath.to_string_lossy()
+            );
         }
     }
+
+    println!("Files found:");
+    found.sort_by_key(|k| k.1);
+    for entry in found.iter() {
+        println!("{}- [{:#X}, asm, {}]", TAB, entry.1, entry.0);
+    }
+
+    println!("");
+    println!("Ambiguous files:");
+    for entry in ambiguous.iter() {
+        println!(
+            "{}: [ {} ]",
+            entry.0,
+            entry
+                .1
+                .iter()
+                .map(|x| format!("{:#X}", x))
+                .collect::<Vec<String>>()
+                .join(", ")
+        );
+    }
+    println!("");
+    println!("Files not found:");
+    println!("{}", not_found.join(", "));
+
+    // eprintln!("Found: {:?}", found);
+    // eprintln!("Ambiguous: {:?}", ambiguous);
+    // eprintln!("Not found: {:?}", not_found);
     Ok(())
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    // Read and interpret command-line arguments
+    let rompath = std::env::args().nth(1).expect("no rompath given");
+    let objects_dir = std::env::args().nth(2).expect("no objects directory given");
+    let romfile = fs::read(rompath)?;
+    let mut object_paths = fs::read_dir(objects_dir)?
+        .map(|res| res.map(|e| e.path()))
+        .collect::<Result<Vec<_>, io::Error>>()?;
+
+    object_paths.sort();
+
+    return run(romfile, object_paths);
 }
 
 // TODO: write an actual good set of tests
