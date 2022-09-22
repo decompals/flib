@@ -246,7 +246,22 @@ fn run(romfile: Vec<u8>, object_paths: Vec<PathBuf>) -> Result<(), Box<dyn Error
     Ok(())
 }
 
+fn print_usage() -> () {
+    println!(
+        "\
+    usage: {} BINARY DIRECTORY\n
+    BINARY     binary file to investigate (generally a z64 file)
+    DIRECTORY  directory containing object files to look for in the binary",
+        std::env::args().nth(0).unwrap()
+    );
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
+    if std::env::args().len() < 2 {
+        print_usage();
+        return Ok(());
+    }
+
     // Read and interpret command-line arguments
     let rompath = std::env::args().nth(1).expect("no rompath given");
     let objects_dir = std::env::args().nth(2).expect("no objects directory given");
