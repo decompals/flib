@@ -1,4 +1,68 @@
-pub const BASEPATH: &str = "./libultra_rom/";
+// Module for dealing specifically with libultra idiosyncracies
+
+/// Files known to be handwritten. These are taken from libgultra 2.0L, they may differ on other versions.
+pub const HANDWRITTEN_FILES: &'static [&str] = &[
+    // gu
+    "sqrtf",
+    "libm_vals",
+    // libc
+    "bzero",
+    "bcmp",
+    "bcopy",
+    // os
+    "setcount",
+    "setconfig",
+    "unmaptlb",
+    "writebackdcache",
+    "maptlbrdb",
+    "setwatchlo",
+    "setcause",
+    "writebackdcacheall",
+    "parameters",
+    "invaldcache",
+    "setfpccsr",
+    "getfpccsr",
+    "gettlbhi",
+    "setsr",
+    "gettlbpagemask",
+    "gettlbasid",
+    "setintmask",
+    "exceptasm",
+    "getconfig",
+    "getintmask",
+    "unmaptlball",
+    "settlbasid",
+    "gettlblo0",
+    "getcount",
+    "probetlb",
+    "getcompare",
+    "getsr",
+    "getcause",
+    "gettlblo1",
+    "invalicache",
+    "interrupt",
+    "setcompare",
+    "maptlb",
+    "getwatchlo",
+    // rmon
+    "rmonrcp",
+];
+
+/// Files that are too generic to necessarily believe their specific inclusion.
+pub const GENERIC_FILES: &'static [&str] = &["copy"];
+
+pub const HANDWRITTEN_GU_FILES: &'static [&str] = &[
+    "scalef",
+    "mtxf2l",
+    "translate",
+    "mtxl2f",
+    "mtxident",
+    "translatef",
+    "scale",
+    "normalize",
+    "mtxidentf",
+    "mtxcatf",
+];
 
 pub const FILES: &'static [&str] = &[
     // "bzero",

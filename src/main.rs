@@ -120,6 +120,12 @@ fn print_relocs(obj_file: &object::File) {
 
 // const TEST_FILES: &[&str] = &["llcvt"];
 
+pub struct FoundFile {
+    name: String,
+    text_start: usize,
+    text_size: usize,
+}
+
 fn run(romfile: Vec<u8>, object_paths: Vec<PathBuf>) -> Result<(), Box<dyn Error>> {
     let mut rom_words = Vec::new();
     let start = 0x1000;
@@ -139,7 +145,9 @@ fn run(romfile: Vec<u8>, object_paths: Vec<PathBuf>) -> Result<(), Box<dyn Error
         // print_relocs(&obj_file);
 
         if let Some(section) = obj_file.section_by_name(".text") {
-            if section.size() == 0 {
+            let text_size = section.size();
+
+            if text_size == 0 {
                 eprintln!("{} has a size-zero .text section, skipping", file_stem);
                 continue;
             }
@@ -203,7 +211,11 @@ fn run(romfile: Vec<u8>, object_paths: Vec<PathBuf>) -> Result<(), Box<dyn Error
             }
             match precise_results.len() {
                 0 => not_found.push(file_stem.to_string()),
-                1 => found.push((file_stem.to_string(), precise_results[0])),
+                1 => found.push(FoundFile {
+                    name: file_stem.to_string(),
+                    text_start: precise_results[0],
+                    text_size: text_size as usize,
+                }),
                 _ => ambiguous.push((file_stem.to_string(), precise_results.clone())),
             }
 
@@ -217,10 +229,11 @@ fn run(romfile: Vec<u8>, object_paths: Vec<PathBuf>) -> Result<(), Box<dyn Error
     }
 
     println!("Files found:");
-    found.sort_by_key(|k| k.1);
-    for entry in found.iter() {
-        println!("{}- [{:#X}, asm, {}]", TAB, entry.1, entry.0);
-    }
+    found.sort_by_key(|k| k.text_start);
+    splat::print_yaml(found);
+    // for entry in found.iter() {
+    //     println!("{}- [{:#X}, asm, {}]", TAB, entry.text_start, entry.name);
+    // }
 
     println!("");
     println!("Ambiguous files:");
@@ -236,6 +249,7 @@ fn run(romfile: Vec<u8>, object_paths: Vec<PathBuf>) -> Result<(), Box<dyn Error
                 .join(", ")
         );
     }
+
     println!("");
     println!("Files not found:");
     println!("{}", not_found.join(", "));
@@ -257,7 +271,7 @@ fn print_usage() -> () {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    if std::env::args().len() < 2 {
+    if std::env::args().len() == 1 {
         print_usage();
         return Ok(());
     }
