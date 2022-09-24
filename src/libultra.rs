@@ -51,6 +51,107 @@ pub const HANDWRITTEN_FILES: &'static [&str] = &[
 /// Files that are too generic to necessarily believe their specific inclusion.
 pub const GENERIC_FILES: &'static [&str] = &["copy"];
 
+pub static AMBIGUOUS_FILES: &[&[&str]] = &[
+    &["cspdelete", "seqpdelete"],
+    &["cspgetchlvol", "seqpgetchlvol"],
+    &["cspgetfxmix", "seqpgetfxmix"],
+    &["cspgetpan", "seqpgetpan"],
+    &["cspgetpriority", "seqpgetpriority"],
+    &["cspgetprogram", "seqpgetprogram"],
+    &["cspgetseq", "seqpgetseq"],
+    &["cspgetstate", "seqpgetstate"],
+    &["cspgetvol", "seqpgetvol"],
+    &["cspplay", "seqpplay"],
+    &["cspsendmidi", "seqpsendmidi"],
+    &["cspsetbank", "seqpsetbank"],
+    &["cspsetchlvol", "seqpsetchlvol"],
+    &["cspsetfxmix", "seqpsetfxmix"],
+    &["cspsetpan", "seqpsetpan"],
+    &["cspsetpriority", "seqpsetpriority"],
+    &["cspsetprogram", "seqpsetprogram"],
+    &["cspsetseq", "seqpsetseq"],
+    &["cspsettempo", "seqpsettempo"],
+    &["cspsetvol", "seqpsetvol"],
+    &["cspstop", "seqpstop"],
+    &["epiread", "epiwrite"], // __osEPiRawReadIo,__osEPiRawWriteIo
+    &["getactivequeue", "getcurrfaultthread", "pigettype", "vigetcurrcontext", "vigetnextcontext"], 
+    // createthread,exceptasm,vimgr, pigettype search for 0x80000304
+    &["hide", "show"], // spSetAttribute,spClearAttribute
+    &["piacs", "siacs"], // __osPiCreateAccessQueue,__osSiCreateAccessQueue
+    &["piread", "piwrite"], // __osPiRawWriteIo,__osPiRawReadIo
+    &["sirawread", "sprawread"], // __osSiDeviceBusy,__osSpDeviceBusy
+    &["sirawwrite", "sprawwrite"], // __osSiDeviceBusy,__osSpDeviceBusy
+    &["vigetcurrframebuf", "vigetnextframebuf"], // __osViCurr,__osViNext
+];
+
+pub const PIGETTYPE_TEXT: &[u32] = &[0x3C028000u32, 0x03E00008u32, 0x8C420304u32];
+
+pub const FLAT_AMBIGUOUS_FILES: &[&str] = &[
+    "cspdelete",
+    "seqpdelete",
+    "cspgetchlvol",
+    "seqpgetchlvol",
+    "cspgetfxmix",
+    "seqpgetfxmix",
+    "cspgetpan",
+    "seqpgetpan",
+    "cspgetpriority",
+    "seqpgetpriority",
+    "cspgetprogram",
+    "seqpgetprogram",
+    "cspgetseq",
+    "seqpgetseq",
+    "cspgetstate",
+    "seqpgetstate",
+    "cspgetvol",
+    "seqpgetvol",
+    "cspplay",
+    "seqpplay",
+    "cspsendmidi",
+    "seqpsendmidi",
+    "cspsetbank",
+    "seqpsetbank",
+    "cspsetchlvol",
+    "seqpsetchlvol",
+    "cspsetfxmix",
+    "seqpsetfxmix",
+    "cspsetpan",
+    "seqpsetpan",
+    "cspsetpriority",
+    "seqpsetpriority",
+    "cspsetprogram",
+    "seqpsetprogram",
+    "cspsetseq",
+    "seqpsetseq",
+    "cspsettempo",
+    "seqpsettempo",
+    "cspsetvol",
+    "seqpsetvol",
+    "cspstop",
+    "seqpstop",
+    "epiread",
+    "epiwrite",
+    "getactivequeue",
+    "getcurrfaultthread",
+    "pigettype",
+    "vigetcurrcontext",
+    "vigetnextcontext",
+    "hide",
+    "show",
+    "piacs",
+    "siacs",
+    "piread",
+    "piwrite",
+    "sirawread",
+    "sprawread",
+    "sirawwrite",
+    "sprawwrite",
+    "vigetcurrframebuf",
+    "vigetnextframebuf",
+];
+
+// pub static FLATTENED: &[&str] = &AMBIGUOUS_FILES.into_iter().flatten().collect::<Vec<&str>>();
+
 pub const HANDWRITTEN_GU_FILES: &'static [&str] = &[
     "scalef",
     "mtxf2l",
