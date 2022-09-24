@@ -32,10 +32,11 @@ fn make_rough_stencil(input: &[u8], output: &mut Vec<u32>) {
     }
 }
 
+#[derive(Debug, PartialEq)]
 pub struct PreciseStencil {
-    word: u32, // Masked word
+    word: u32,   // Masked word
     addend: u32, // Part masked away
-    mask: u32, // Mask applied
+    mask: u32,   // Mask applied
 }
 
 fn make_precise_stencil(obj_file: &object::File, input: &[u8]) -> Vec<PreciseStencil> {
@@ -149,6 +150,7 @@ fn precise_check(v: &[u32], stencil: &[PreciseStencil]) -> bool {
 //     }
 // }
 
+#[derive(Debug, PartialEq)]
 pub struct FoundFile {
     name: String,
     text_start: usize,
@@ -311,7 +313,9 @@ fn run(romfile: Vec<u8>, object_paths: Vec<PathBuf>) -> Result<(), Box<dyn Error
             symbol.name, symbol.address, symbol.size, symbol.filename, symbol.defined
         );
     }
+    // Uncomment this for splat-compatible symbol output until we have proper argument parsing
     // splat::print_symbol_addrs(&all_symbols);
+
     // eprintln!("Found: {:?}", found);
     // eprintln!("Ambiguous: {:?}", ambiguous);
     // eprintln!("Not found: {:?}", not_found);
