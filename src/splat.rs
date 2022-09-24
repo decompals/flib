@@ -16,7 +16,7 @@ pub fn print_yaml(found_files: &[FoundFile]) {
         };
 
         if previous_file_text_end < entry.text_start {
-            println!("{}-[{:#X}, asm]", TAB, previous_file_text_end);
+            println!("{}- [{:#X}, asm]", TAB, previous_file_text_end);
         }
 
         if libultra::GENERIC_FILES.contains(&entry.name.as_str()) {
@@ -24,7 +24,7 @@ pub fn print_yaml(found_files: &[FoundFile]) {
         }
 
         print!(
-            "{}-[{:#X}, {}, {}]",
+            "{}- [{:#X}, {}, {}]",
             TAB, entry.text_start, filetype, entry.name
         );
 
