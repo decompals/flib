@@ -176,9 +176,10 @@ fn run(romfile: Vec<u8>, object_paths: Vec<PathBuf>) -> Result<(), Box<dyn Error
     let start = 0x1000;
     let end = start + 0x100000;
 
-    let mut found = Vec::new(); // length = 1
-    let mut ambiguous = Vec::new(); // length > 1
-    let mut not_found = Vec::new(); // length = 0
+    let mut files_found = Vec::new(); // length = 1
+    let mut files_ambiguous = Vec::new(); // length > 1
+    let mut files_not_found = Vec::new(); // length = 0
+    let mut ambiguous_addresses = Vec::new(); // addresses with more than one possible file
 
     let mut all_symbols = Vec::new();
 
@@ -216,7 +217,7 @@ fn run(romfile: Vec<u8>, object_paths: Vec<PathBuf>) -> Result<(), Box<dyn Error
             assert_eq!(words.len(), stencil.len());
             let rough_results = naive_wordsearch(&rom_words, &stencil);
             if rough_results.len() == 0 {
-                not_found.push(file_stem.to_string());
+                files_not_found.push(file_stem.to_string());
                 continue;
             }
 
@@ -258,13 +259,13 @@ fn run(romfile: Vec<u8>, object_paths: Vec<PathBuf>) -> Result<(), Box<dyn Error
             }
 
             match precise_results.len() {
-                0 => not_found.push(file_stem.to_string()),
-                1 => found.push(FoundFile {
+                0 => files_not_found.push(file_stem.to_string()),
+                1 => files_found.push(FoundFile {
                     name: file_stem.to_string(),
                     text_start: precise_results[0],
                     text_size: text_size as usize,
                 }),
-                _ => ambiguous.push((file_stem.to_string(), precise_results.clone())),
+                _ => files_ambiguous.push((file_stem.to_string(), precise_results.clone())),
             }
 
             // println!("{}: {:X?} (precise)", file_stem, &precise_results);
@@ -275,16 +276,29 @@ fn run(romfile: Vec<u8>, object_paths: Vec<PathBuf>) -> Result<(), Box<dyn Error
 
     // return Ok(());
     println!("Files found:");
-    found.sort_by_key(|k| k.text_start);
-    splat::print_yaml(&found);
+    files_found.sort_by_key(|k| k.text_start);
+
+    let mut addresses = Vec::new();
+    for file in files_found.iter() {
+        let address = file.text_start;
+        if addresses.contains(&address) {
+            ambiguous_addresses.push(address);
+        } else {
+            addresses.push(address);
+        }
+    }
+    ambiguous_addresses.dedup();
+
+
+    splat::print_yaml(&files_found, &ambiguous_addresses);
     // for entry in found.iter() {
     //     println!("{}- [{:#X}, asm, {}]", TAB, entry.text_start, entry.name);
     // }
 
     println!("");
-    println!("Ambiguous files:");
-    ambiguous.sort_by_key(|x| x.1[0]);
-    for entry in ambiguous.iter() {
+    println!("Ambiguous chunks:");
+    files_ambiguous.sort_by_key(|x| x.1[0]);
+    for entry in files_ambiguous.iter() {
         println!(
             "{}: [ {} ]",
             entry.0,
@@ -299,7 +313,7 @@ fn run(romfile: Vec<u8>, object_paths: Vec<PathBuf>) -> Result<(), Box<dyn Error
 
     println!("");
     println!("Files not found:");
-    println!("{}", not_found.join(", "));
+    println!("{}", files_not_found.join(", "));
 
     println!("");
     println!("Symbols:");

@@ -58,15 +58,16 @@ pub fn parse_relocated(
                     size = symbol.size() as u32;
                     defined = symbol.is_definition();
                 }
+                RelocationTarget::Section(sec_index) => {
+                    let section = obj_file.section_by_index(sec_index).unwrap();
+                    name = section.name()?.to_string();
+                    size = section.size() as u32;
+                    defined = true;
+                }
                 _ => (),
             };
 
-            // if &name == &"osRomType".to_string() {
-            //     for sym in obj_file.symbols() {
-            //         println!("{}", sym.name().unwrap());
-            //     }
-            //     println!("{:?}", reloc);
-            // }
+            // println!("{} {:?}", name, reloc);
 
             match reloc.kind() {
                 RelocationKind::Elf(R_MIPS_26) => {
