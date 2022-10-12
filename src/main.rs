@@ -1,3 +1,4 @@
+use argh;
 use object::{elf, Object, ObjectSection, RelocationKind};
 use std::collections::HashMap;
 use std::error::Error;
@@ -21,14 +22,74 @@ const ROUGH_MASK: u32 = 0xFC_00_00_00;
 const J_TYPE_MASK: u32 = 0xFC_00_00_00;
 const I_TYPE_MASK: u32 = 0xFF_FF_00_00;
 
-fn words_from_be_bytes(input: &[u8], output: &mut Vec<u32>) -> () {
-    for bytes in input.chunks_exact(4) {
-        output.push(u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]));
+enum Endian {
+    Little,
+    Big,
+}
+
+fn str_to_endian(value: &str) -> Result<Endian, String> {
+    match value {
+        "little" => Ok(Endian::Little),
+        "big" => Ok(Endian::Big),
+        _ => Err("Not a known endian?".to_string()),
     }
 }
 
-fn make_rough_stencil(input: &[u8], output: &mut Vec<u32>) {
-    words_from_be_bytes(input, output);
+/// config
+#[derive(argh::FromArgs)]
+struct Config {
+    /// rom file to investigate
+    #[argh(positional)]
+    rompath: String,
+
+    /// directory containing objects to search for
+    #[argh(positional)]
+    objects_dir: String,
+
+    /// endian
+    #[argh(
+        option,
+        short = 'e',
+        from_str_fn(str_to_endian),
+        default = "Endian::Big"
+    )]
+    endian: Endian,
+
+    /// whether to treat the romfile as a binary blob instead of a rom
+    // TODO: consider replacing this by an enum for various modes: binary, n64 rom, ps1 rom, elf?
+    #[argh(switch, short = 'b')]
+    binary: bool,
+
+    /// whether to use libultra-specifc information to improve results
+    #[argh(switch, short = 'l')]
+    libultra: bool,
+
+    /// whether to output in splat-compatible format
+    #[argh(switch, short = 's')]
+    splat_output: bool,
+
+    /// verbosity
+    // TODO: consider switching to a number
+    #[argh(switch, short = 'v')]
+    verbosity: bool,
+
+    /// whether to attempt to resolve ambiguous files with address data
+    #[argh(switch, short = 'd')]
+    disambiguate: bool,
+}
+
+fn words_from_bytes(config: &Config, input: &[u8], output: &mut Vec<u32>) -> () {
+    let word_from_bytes = match config.endian {
+        Endian::Big => u32::from_be_bytes,
+        Endian::Little => u32::from_le_bytes,
+    };
+    for bytes in input.chunks_exact(4) {
+        output.push(word_from_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]));
+    }
+}
+
+fn make_rough_stencil(config: &Config, input: &[u8], output: &mut Vec<u32>) {
+    words_from_bytes(config, input, output);
     for word in output {
         *word &= ROUGH_MASK;
     }
@@ -41,11 +102,19 @@ pub struct PreciseStencil {
     mask: u32,   // Mask applied
 }
 
-fn make_precise_stencil(obj_file: &object::File, input: &[u8]) -> Vec<PreciseStencil> {
+fn make_precise_stencil(
+    config: &Config,
+    obj_file: &object::File,
+    input: &[u8],
+) -> Vec<PreciseStencil> {
     let mut output = Vec::new();
+    let word_from_bytes = match config.endian {
+        Endian::Big => u32::from_be_bytes,
+        Endian::Little => u32::from_le_bytes,
+    };
 
     for bytes in input.chunks_exact(4) {
-        let word = u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+        let word = word_from_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
         output.push(PreciseStencil {
             word,
             addend: word,
@@ -79,6 +148,7 @@ fn make_precise_stencil(obj_file: &object::File, input: &[u8]) -> Vec<PreciseSte
 fn naive_wordsearch(v: &[u32], pattern: &[u32]) -> Vec<usize> {
     let mut i = 0;
     let mut results = Vec::new();
+
     while i <= v.len() - pattern.len() {
         let mut matches = true;
         for (j, word) in pattern.iter().enumerate() {
@@ -89,7 +159,7 @@ fn naive_wordsearch(v: &[u32], pattern: &[u32]) -> Vec<usize> {
             }
         }
         if matches {
-            results.push(i * 4)
+            results.push(i * 4);
         }
         i += 1;
     }
@@ -126,10 +196,25 @@ pub struct FoundFile {
 /// - unsure files (> 1)
 /// - not found files (0)
 /// - symbol info
-fn run(romfile: Vec<u8>, object_paths: Vec<PathBuf>) -> Result<(), Box<dyn Error>> {
+fn run(config: &Config) -> Result<(), Box<dyn Error>> {
+    let romfile = fs::read(&config.rompath)?;
+    let mut object_paths = fs::read_dir(&config.objects_dir)?
+        .map(|res| res.map(|e| e.path()))
+        .collect::<Result<Vec<_>, io::Error>>()?;
+
+    object_paths.sort();
+
     let mut rom_words = Vec::new();
-    let start = 0x1000;
-    let end = start + 0x100000;
+    let start;
+    let end;
+
+    if !config.binary {
+        start = 0x1000;
+        end = start + 0x100000;
+    } else {
+        start = 0;
+        end = romfile.len();
+    }
 
     let mut files_found = Vec::new(); // length = 1
     let mut files_ambiguous = Vec::new(); // length > 1
@@ -138,7 +223,7 @@ fn run(romfile: Vec<u8>, object_paths: Vec<PathBuf>) -> Result<(), Box<dyn Error
 
     let mut all_symbols = Vec::new();
 
-    words_from_be_bytes(&romfile[start..end], &mut rom_words);
+    words_from_bytes(config, &romfile[start..end], &mut rom_words);
 
     for filepath in object_paths {
         let file_stem = filepath.file_stem().unwrap().to_string_lossy(); // Maybe
@@ -158,7 +243,7 @@ fn run(romfile: Vec<u8>, object_paths: Vec<PathBuf>) -> Result<(), Box<dyn Error
             let mut words = Vec::new();
             let mut stencil = Vec::new();
 
-            words_from_be_bytes(section.data()?, &mut words);
+            words_from_bytes(config, section.data()?, &mut words);
             if words.iter().all(|elem| *elem == 0) {
                 eprintln!(
                     "{} has .text section composed of only zeros, skipping",
@@ -168,7 +253,7 @@ fn run(romfile: Vec<u8>, object_paths: Vec<PathBuf>) -> Result<(), Box<dyn Error
             }
 
             // Do a rough pass first to quickly narrow down search
-            make_rough_stencil(section.data()?, &mut stencil);
+            make_rough_stencil(config, section.data()?, &mut stencil);
             assert_eq!(words.len(), stencil.len());
             let rough_results = naive_wordsearch(&rom_words, &stencil);
             if rough_results.len() == 0 {
@@ -176,7 +261,7 @@ fn run(romfile: Vec<u8>, object_paths: Vec<PathBuf>) -> Result<(), Box<dyn Error
                 continue;
             }
 
-            let stencil = make_precise_stencil(&obj_file, section.data()?);
+            let stencil = make_precise_stencil(config, &obj_file, section.data()?);
 
             let mut precise_results = Vec::new();
             let mut skipping_symbols = false;
@@ -310,16 +395,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // Read and interpret command-line arguments
-    let rompath = std::env::args().nth(1).expect("no rompath given");
-    let objects_dir = std::env::args().nth(2).expect("no objects directory given");
-    let romfile = fs::read(rompath)?;
-    let mut object_paths = fs::read_dir(objects_dir)?
-        .map(|res| res.map(|e| e.path()))
-        .collect::<Result<Vec<_>, io::Error>>()?;
+    let config: Config = argh::from_env();
 
-    object_paths.sort();
-
-    return run(romfile, object_paths);
+    return run(&config);
 }
 
 // TODO: write an actual good set of tests

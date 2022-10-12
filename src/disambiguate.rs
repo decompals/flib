@@ -1,6 +1,7 @@
 //! Disambiguation of files by applying relocations
 
 use crate::make_precise_stencil;
+use crate::Config;
 use crate::FoundFile;
 use crate::PreciseStencil;
 use crate::Symbol;
@@ -80,6 +81,7 @@ fn relocate(
 }
 
 fn disambiguate(
+    config: Config,
     rom_words: &[u32],
     files_by_address: HashMap<usize, Vec<PathBuf>>,
     symbols: &[Symbol],
@@ -90,14 +92,12 @@ fn disambiguate(
                 let file_stem = filepath.file_stem().unwrap().to_string_lossy(); // Maybe
                 let bin_data = fs::read(&filepath).unwrap();
                 let obj_file = object::File::parse(&*bin_data).unwrap();
-                
+
                 eprintln!("Attempting to disambiguate {file_stem}");
 
                 if let Some(section) = obj_file.section_by_name(".text") {
-                    let stencil = make_precise_stencil(&obj_file, section.data().unwrap());
+                    let stencil = make_precise_stencil(&config, &obj_file, section.data().unwrap());
                     let relocated_file = relocate(&obj_file, &stencil, symbols);
-
-
                 }
             }
         }
