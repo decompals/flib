@@ -8,9 +8,9 @@ pub fn print_yaml(found_files: &[FoundFile], ambiguous_addresses: &[usize]) {
     let mut previous_file_text_end = 0x1000;
 
     for entry in found_files {
-        let mut ambiguous = false;
+        // let mut ambiguous = false;
         let mut comment = Vec::new();
-        let filetype = if libultra::HANDWRITTEN_FILES.contains(&entry.name.as_str()) {
+        let filetype = if libultra::HANDWRITTEN_FILES.contains(&entry.stem.as_str()) {
             "hasm"
         } else {
             "c"
@@ -22,19 +22,19 @@ pub fn print_yaml(found_files: &[FoundFile], ambiguous_addresses: &[usize]) {
         }
         
         
-        if libultra::GENERIC_FILES.contains(&entry.name.as_str()) {
+        if libultra::GENERIC_FILES.contains(&entry.stem.as_str()) {
             comment.push("common form");
         }
         
         if ambiguous_addresses.contains(&entry.text_start) {
             comment.push("ambiguous");
-            ambiguous = true;
+            // ambiguous = true;
             print!("# ");
         }
 
         print!(
             "{}- [{:#X}, {}, {}]",
-            TAB, entry.text_start, filetype, entry.name
+            TAB, entry.text_start, filetype, entry.stem
         );
 
         if comment.len() > 0 {

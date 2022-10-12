@@ -49,7 +49,10 @@ pub const HANDWRITTEN_FILES: &'static [&str] = &[
 ];
 
 /// Files that are too generic to necessarily believe their specific inclusion.
-pub const GENERIC_FILES: &'static [&str] = &["copy"];
+pub const GENERIC_FILES: &'static [&str] = &[
+    "copy",      // looks like a generic memcpy
+    "synfreefx", // empty 2-argument function
+];
 
 pub static AMBIGUOUS_FILES: &[&[&str]] = &[
     &["cspdelete", "seqpdelete"],
@@ -74,13 +77,19 @@ pub static AMBIGUOUS_FILES: &[&[&str]] = &[
     &["cspsetvol", "seqpsetvol"],
     &["cspstop", "seqpstop"],
     &["epiread", "epiwrite"], // __osEPiRawReadIo,__osEPiRawWriteIo
-    &["getactivequeue", "getcurrfaultthread", "pigettype", "vigetcurrcontext", "vigetnextcontext"], 
+    &[
+        "getactivequeue",
+        "getcurrfaultthread",
+        "pigettype",
+        "vigetcurrcontext",
+        "vigetnextcontext",
+    ],
     // createthread,exceptasm,vimgr, pigettype search for 0x80000304
-    &["hide", "show"], // spSetAttribute,spClearAttribute
-    &["piacs", "siacs"], // __osPiCreateAccessQueue,__osSiCreateAccessQueue
-    &["piread", "piwrite"], // __osPiRawWriteIo,__osPiRawReadIo
-    &["sirawread", "sprawread"], // __osSiDeviceBusy,__osSpDeviceBusy
-    &["sirawwrite", "sprawwrite"], // __osSiDeviceBusy,__osSpDeviceBusy
+    &["hide", "show"],                           // spSetAttribute,spClearAttribute
+    &["piacs", "siacs"],                         // __osPiCreateAccessQueue,__osSiCreateAccessQueue
+    &["piread", "piwrite"],                      // __osPiRawWriteIo,__osPiRawReadIo
+    &["sirawread", "sprawread"],                 // __osSiDeviceBusy,__osSpDeviceBusy
+    &["sirawwrite", "sprawwrite"],               // __osSiDeviceBusy,__osSpDeviceBusy
     &["vigetcurrframebuf", "vigetnextframebuf"], // __osViCurr,__osViNext
 ];
 

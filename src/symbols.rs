@@ -3,7 +3,7 @@
 use std::error::Error;
 
 use object::{
-    Object, ObjectSection, ObjectSymbol, ObjectSymbolTable, RelocationKind, RelocationTarget,
+    elf, Object, ObjectSection, ObjectSymbol, ObjectSymbolTable, RelocationKind, RelocationTarget,
     SymbolKind,
 };
 
@@ -20,11 +20,7 @@ pub struct Symbol {
 }
 
 // High bits to use for a jal. Assume this is correct for now, add a user override later
-const HIGH_BITS: u32 = 0x80000000;
-
-const R_MIPS_26: u32 = 4;
-const R_MIPS_HI16: u32 = 5;
-const R_MIPS_LO16: u32 = 6;
+pub const HIGH_BITS: u32 = 0x80000000;
 
 /// Idea:
 /// - parse .text section as usual, but separate off the relocated parts from the stencil instead of discarding them?
@@ -70,7 +66,7 @@ pub fn parse_relocated(
             // println!("{} {:?}", name, reloc);
 
             match reloc.kind() {
-                RelocationKind::Elf(R_MIPS_26) => {
+                RelocationKind::Elf(elf::R_MIPS_26) => {
                     // Ignore js since are usually just GCC's version of a b
                     if rom_words[index] & J_TYPE_MASK != 0b000010 << 26 {
                         // println!("{:?}", reloc.addend());
@@ -86,7 +82,7 @@ pub fn parse_relocated(
                         });
                     }
                 }
-                RelocationKind::Elf(R_MIPS_HI16) => {
+                RelocationKind::Elf(elf::R_MIPS_HI16) => {
                     let mut address = (rom_words[index] & !I_TYPE_MASK) << 16;
                     address -= stencil[index].addend << 16;
                     symbols.push(Symbol {
@@ -98,23 +94,16 @@ pub fn parse_relocated(
                         complete: false,
                     });
                 }
-                RelocationKind::Elf(R_MIPS_LO16) => {
+                RelocationKind::Elf(elf::R_MIPS_LO16) => {
                     let address = rom_words[index] & !I_TYPE_MASK;
 
                     if let Some(last_symbol) = symbols.last_mut() {
                         if !last_symbol.complete {
-                            last_symbol.address += address + ((address & 0x8000) << 1);
+                            last_symbol.address += address;
+                            last_symbol.address -= (address & 0x8000) << 1;
                             last_symbol.address -= reloc.addend() as u32;
                             last_symbol.address -= stencil[index].addend;
                             last_symbol.complete = true;
-                            // if reloc.addend() != 0 {
-                            //     println!("{:?}", last_symbol);
-                            //     println!("{:?}", reloc.addend());
-                            // }
-                            // if stencil[index].addend != 0 {
-                            //     println!("{:?}", last_symbol);
-                            //     println!("{:?}", stencil[index].addend);
-                            // }
                         } else {
                             println!("Last symbol seems complete already");
                             println!("{:?}", last_symbol);
@@ -161,3 +150,43 @@ pub fn parse_symtab_functions(
 
     Ok(symbols)
 }
+
+
+// fn print_section_rel<Elf: FileHeader>(
+//     p: &mut Printer<'_>,
+//     endian: Elf::Endian,
+//     data: &[u8],
+//     elf: &Elf,
+//     sections: &SectionTable<Elf>,
+//     section: &Elf::SectionHeader,
+// ) {
+//     if let Some(Some((relocations, link))) = section.rel(endian, data).print_err(p) {
+//         let symbols = sections
+//             .symbol_table_by_index(endian, data, link)
+//             .print_err(p);
+//         let proc = rel_flag_type(endian, elf);
+//         for relocation in relocations {
+//             p.group("Relocation", |p| {
+//                 p.field_hex("Offset", relocation.r_offset(endian).into());
+//                 p.field_enum("Type", relocation.r_type(endian), proc);
+//                 let sym = relocation.r_sym(endian);
+//                 print_rel_symbol(p, endian, symbols, sym);
+//             });
+//         }
+//     }
+// }
+
+// fn print_relocs(obj_file: &object::File) {
+//     let symtab = obj_file.symbol_table().unwrap();
+//     if let Some(section) = obj_file.section_by_name(".text") {
+//         for reloc in section.relocations() {
+//             print!("{:#X}, {:?}: ", reloc.0, reloc.1.kind());
+//             if let RelocationTarget::Symbol(index) = reloc.1.target() {
+//                 println!(
+//                     "{:?}",
+//                     symtab.symbol_by_index(index).unwrap().name().unwrap()
+//                 );
+//             }
+//         }
+//     }
+// }

@@ -1,10 +1,12 @@
-use object::{Object, ObjectSection, RelocationKind};
+use object::{elf, Object, ObjectSection, RelocationKind};
+use std::collections::HashMap;
 use std::error::Error;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
 use symbols::Symbol;
 
+mod disambiguate;
 mod libultra;
 mod splat;
 mod symbols;
@@ -55,13 +57,13 @@ fn make_precise_stencil(obj_file: &object::File, input: &[u8]) -> Vec<PreciseSte
         for reloc in section.relocations() {
             let index = (reloc.0 / 4) as usize;
             match reloc.1.kind() {
-                RelocationKind::Elf(4) => {
+                RelocationKind::Elf(elf::R_MIPS_26) => {
                     let mask = J_TYPE_MASK;
                     output[index].word &= mask;
                     output[index].addend &= !mask;
                     output[index].mask &= mask;
                 }
-                RelocationKind::Elf(5) | RelocationKind::Elf(6) => {
+                RelocationKind::Elf(elf::R_MIPS_LO16) | RelocationKind::Elf(elf::R_MIPS_HI16) => {
                     let mask = I_TYPE_MASK;
                     output[index].word &= mask;
                     output[index].addend &= !mask;
@@ -111,59 +113,12 @@ fn precise_check(v: &[u32], stencil: &[PreciseStencil]) -> bool {
     true
 }
 
-// fn print_section_rel<Elf: FileHeader>(
-//     p: &mut Printer<'_>,
-//     endian: Elf::Endian,
-//     data: &[u8],
-//     elf: &Elf,
-//     sections: &SectionTable<Elf>,
-//     section: &Elf::SectionHeader,
-// ) {
-//     if let Some(Some((relocations, link))) = section.rel(endian, data).print_err(p) {
-//         let symbols = sections
-//             .symbol_table_by_index(endian, data, link)
-//             .print_err(p);
-//         let proc = rel_flag_type(endian, elf);
-//         for relocation in relocations {
-//             p.group("Relocation", |p| {
-//                 p.field_hex("Offset", relocation.r_offset(endian).into());
-//                 p.field_enum("Type", relocation.r_type(endian), proc);
-//                 let sym = relocation.r_sym(endian);
-//                 print_rel_symbol(p, endian, symbols, sym);
-//             });
-//         }
-//     }
-// }
-
-// fn print_relocs(obj_file: &object::File) {
-//     let symtab = obj_file.symbol_table().unwrap();
-//     if let Some(section) = obj_file.section_by_name(".text") {
-//         for reloc in section.relocations() {
-//             print!("{:#X}, {:?}: ", reloc.0, reloc.1.kind());
-//             if let RelocationTarget::Symbol(index) = reloc.1.target() {
-//                 println!(
-//                     "{:?}",
-//                     symtab.symbol_by_index(index).unwrap().name().unwrap()
-//                 );
-//             }
-//         }
-//     }
-// }
-
 #[derive(Debug, PartialEq)]
 pub struct FoundFile {
-    name: String,
+    stem: String,
+    path: PathBuf,
     text_start: usize,
     text_size: usize,
-}
-
-fn disambiguate(
-    rom_words: &[u32],
-    object_paths: Vec<PathBuf>,
-    ambiguous: (String, Vec<u32>),
-    symbols: &[Symbol],
-) -> Vec<FoundFile> {
-    return Vec::new();
 }
 
 /// Write a report containing:
@@ -261,9 +216,10 @@ fn run(romfile: Vec<u8>, object_paths: Vec<PathBuf>) -> Result<(), Box<dyn Error
             match precise_results.len() {
                 0 => files_not_found.push(file_stem.to_string()),
                 1 => files_found.push(FoundFile {
-                    name: file_stem.to_string(),
+                    stem: file_stem.to_string(),
+                    path: filepath,
                     text_start: precise_results[0],
-                    text_size: text_size as usize,
+                    text_size,
                 }),
                 _ => files_ambiguous.push((file_stem.to_string(), precise_results.clone())),
             }
@@ -278,22 +234,23 @@ fn run(romfile: Vec<u8>, object_paths: Vec<PathBuf>) -> Result<(), Box<dyn Error
     println!("Files found:");
     files_found.sort_by_key(|k| k.text_start);
 
-    let mut addresses = Vec::new();
+    let mut files_by_address = HashMap::<usize, Vec<PathBuf>>::new();
     for file in files_found.iter() {
         let address = file.text_start;
-        if addresses.contains(&address) {
-            ambiguous_addresses.push(address);
-        } else {
-            addresses.push(address);
+
+        files_by_address
+            .entry(address)
+            .and_modify(|x| x.push(file.path.clone()))
+            .or_insert(vec![file.path.clone()]);
+    }
+
+    for (k, v) in files_by_address {
+        if v.len() > 1 {
+            ambiguous_addresses.push(k);
         }
     }
-    ambiguous_addresses.dedup();
-
 
     splat::print_yaml(&files_found, &ambiguous_addresses);
-    // for entry in found.iter() {
-    //     println!("{}- [{:#X}, asm, {}]", TAB, entry.text_start, entry.name);
-    // }
 
     println!("");
     println!("Ambiguous chunks:");
