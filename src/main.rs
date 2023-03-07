@@ -364,9 +364,22 @@ fn run(config: &Config) -> Result<(), Box<dyn Error>> {
     all_symbols.dedup_by_key(|x| (x.name.clone(), x.address));
 
     for symbol in all_symbols.iter() {
+        if symbol.name == "" {
+            print!("//");
+        }
+        print!(
+            "{} = {:#X}; // ",
+            symbol.name, symbol.address
+        );
+        if symbol.size != 0 {
+            print!(
+                "size:{:#X} ",
+                symbol.size
+            );
+        }
         println!(
-            "{}, {:#X}, {:#X}  ({}, {})",
-            symbol.name, symbol.address, symbol.size, symbol.filename, symbol.defined
+            "({}, {})",
+            symbol.filename, symbol.defined
         );
     }
     // Uncomment this for splat-compatible symbol output until we have proper argument parsing
