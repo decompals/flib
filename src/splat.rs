@@ -16,16 +16,14 @@ pub fn print_yaml(found_files: &[FoundFile], ambiguous_addresses: &[usize]) {
             "c"
         };
 
-        
         if previous_file_text_end < entry.text_start {
             println!("{}- [{:#X}, asm]", TAB, previous_file_text_end);
         }
-        
-        
+
         if libultra::GENERIC_FILES.contains(&entry.stem.as_str()) {
             comment.push("common form");
         }
-        
+
         if ambiguous_addresses.contains(&entry.text_start) {
             comment.push("ambiguous");
             // ambiguous = true;

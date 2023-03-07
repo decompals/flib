@@ -12,7 +12,7 @@ mod libultra;
 mod splat;
 mod symbols;
 
-const TAB: &str = "    ";
+const TAB: &str = "      ";
 
 // TODO: do this properly
 const BASE_ADDRESS: u32 = 0x80000400;
