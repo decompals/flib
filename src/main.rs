@@ -14,7 +14,7 @@ mod symbols;
 
 const TAB: &str = "    ";
 
-// TODO: do this properly
+// If no base address is specified, use this common one
 const BASE_ADDRESS: u32 = 0x80000400;
 
 const FULL_MASK: u32 = 0xFF_FF_FF_FF;
@@ -35,9 +35,16 @@ fn str_to_endian(value: &str) -> Result<Endian, String> {
     }
 }
 
+fn from_hex_str(src: &str) -> Result<u32, String> {
+    match u32::from_str_radix(src, 16) {
+        Ok(num) => Ok(num),
+        Err(_) => Err("Invalid hex number specified".to_string()),
+    }
+}
+
 /// config
 #[derive(argh::FromArgs)]
-struct Config {
+pub(crate) struct Config {
     /// rom file to investigate
     #[argh(positional)]
     rompath: String,
@@ -59,6 +66,14 @@ struct Config {
     // TODO: consider replacing this by an enum for various modes: binary, n64 rom, ps1 rom, elf?
     #[argh(switch, short = 'b')]
     binary: bool,
+
+    /// vram of start of binary blob, in hex
+    #[argh(option, from_str_fn(from_hex_str))]
+    vram: Option<u32>,
+
+    /// rom start of start of binary blob, used for splat yaml output, in hex
+    #[argh(option, from_str_fn(from_hex_str))]
+    rom_start: Option<u32>,
 
     /// whether to use libultra-specifc information to improve results
     #[argh(switch, short = 'l')]
@@ -280,15 +295,16 @@ fn run(config: &Config) -> Result<(), Box<dyn Error>> {
                     }
 
                     // Symbol parsing
+                    let base_address = config.vram.unwrap_or(BASE_ADDRESS);
                     let mut symbols =
-                        symbols::parse_symtab_functions(&obj_file, &file_stem, BASE_ADDRESS, index)
+                        symbols::parse_symtab_functions(&obj_file, &file_stem, base_address, index)
                             .unwrap();
 
                     symbols.extend(symbols::parse_relocated(
                         &obj_file,
                         &file_stem,
                         &stencil,
-                        &rom_words[index..index + text_size / 4],
+                        &rom_words[index..index + (text_size / 4)],
                     )?);
 
                     symbols.sort_by_key(|x| x.address);
@@ -335,7 +351,7 @@ fn run(config: &Config) -> Result<(), Box<dyn Error>> {
         }
     }
 
-    splat::print_yaml(&files_found, &ambiguous_addresses);
+    splat::print_yaml(&config, &files_found, &ambiguous_addresses);
 
     println!("");
     println!("Ambiguous chunks:");
@@ -396,6 +412,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Read and interpret command-line arguments
     let config: Config = argh::from_env();
+
+    if !config.binary && (config.vram.is_some()) {
+        unimplemented!("VRAM not currently supported in rom mode.");
+    } else if !config.binary && (config.rom_start.is_some()) {
+        unimplemented!("VRAM not currently supported in rom mode.");
+    }
 
     return run(&config);
 }
