@@ -1,5 +1,4 @@
 use crc;
-use std::io;
 
 // #[derive(Debug, Clone)]
 pub struct CICInfo {
@@ -24,16 +23,16 @@ impl CICInfo {
         }
     }
 
-    pub const fn get_from_crc(crc: u32) -> io::Result<CICInfo> {
-        Ok(match crc {
+    pub fn get_from_crc(crc: u32) -> CICInfo {
+        match crc {
             0xD1F2D592 => CICInfo::new(0xD1F2D592, "6102", "7101", 0x000000),
             0x27DF61E2 => CICInfo::new(0x27DF61E2, "6103", "7103", 0x100000),
             0x229F516C => CICInfo::new(0x229F516C, "6105", "7105", 0x000000),
             0xA0DD69F7 => CICInfo::new(0xA0DD69F7, "6106", "7106", 0x200000),
             0x0013579C => CICInfo::new(0x0013579C, "6101", "-", 0x000000),
             0xDAB442CD => CICInfo::new(0xDAB442CD, "-", "7102", 0x80000480),
-            _ => CICInfo::new(0, "unk", "unk", 0x000000),
-        })
+            _ => {eprintln!("Unrecognized crc: {:#X}", crc); CICInfo::new(0, "unk", "unk", 0x000000)},
+        }
     }
 
     pub fn name(&self) -> String {
@@ -62,7 +61,7 @@ impl CICInfo {
     }
 }
 
-pub fn identify(reader: &Vec<u8>) -> io::Result<CICInfo> {
+pub fn identify(reader: &Vec<u8>) -> CICInfo {
     let ipl3 = &reader[0x40..0x1000];
 
     const CRC_ALG: crc::Crc<u32> = crc::Crc::<u32>::new(&crc::CRC_32_CKSUM);

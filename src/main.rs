@@ -211,7 +211,7 @@ fn run(config: &Config) -> Result<(), Box<dyn Error>> {
         start = 0x1000;
         end = start + 0x100000;
 
-        let cic_info = ipl3::identify(&romfile).unwrap();
+        let cic_info = ipl3::identify(&romfile);
 
         let mut entrypoint_word = Vec::new();
         words_from_bytes(config, &romfile[0x8..0xC], &mut entrypoint_word);
