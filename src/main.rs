@@ -33,9 +33,16 @@ fn str_to_endian(value: &str) -> Result<Endian, String> {
     }
 }
 
+fn from_hex_str(src: &str) -> Result<u32, String> {
+    match u32::from_str_radix(src, 16) {
+        Ok(num) => Ok(num),
+        Err(_) => Err("Invalid hex number specified".to_string()),
+    }
+}
+
 /// config
 #[derive(argh::FromArgs)]
-struct Config {
+pub(crate) struct Config {
     /// rom file to investigate
     #[argh(positional)]
     rompath: String,
@@ -57,6 +64,14 @@ struct Config {
     // TODO: consider replacing this by an enum for various modes: binary, n64 rom, ps1 rom, elf?
     #[argh(switch, short = 'b')]
     binary: bool,
+
+    /// vram of start of binary blob, in hex
+    #[argh(option, from_str_fn(from_hex_str))]
+    vram: Option<u32>,
+
+    /// rom start of start of binary blob, used for splat yaml output, in hex
+    #[argh(option, from_str_fn(from_hex_str))]
+    rom_start: Option<u32>,
 
     /// whether to use libultra-specifc information to improve results
     #[argh(switch, short = 'l')]
@@ -220,7 +235,7 @@ fn run(config: &Config) -> Result<(), Box<dyn Error>> {
     } else {
         start = 0;
         end = romfile.len();
-        base_address = 0x80000400;
+        base_address = config.vram.unwrap();
     }
 
     let mut files_found = Vec::new(); // length = 1
@@ -295,7 +310,7 @@ fn run(config: &Config) -> Result<(), Box<dyn Error>> {
                         &obj_file,
                         &file_stem,
                         &stencil,
-                        &rom_words[index..index + text_size / 4],
+                        &rom_words[index..index + (text_size / 4)],
                     )?);
 
                     symbols.sort_by_key(|x| x.address);
@@ -342,7 +357,7 @@ fn run(config: &Config) -> Result<(), Box<dyn Error>> {
         }
     }
 
-    splat::print_yaml(&files_found, &ambiguous_addresses);
+    splat::print_yaml(&config, &files_found, &ambiguous_addresses);
 
     println!("");
     println!("Ambiguous chunks:");
@@ -403,6 +418,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // Read and interpret command-line arguments
     let config: Config = argh::from_env();
+
+    if !config.binary && (config.vram.is_some()) {
+        unimplemented!("VRAM not currently supported in rom mode.");
+    } else if !config.binary && (config.rom_start.is_some()) {
+        unimplemented!("VRAM not currently supported in rom mode.");
+    }
 
     return run(&config);
 }
