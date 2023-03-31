@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 object = "0.29.0"
 argh = "0.1.9"
+crc = "3.0.0"

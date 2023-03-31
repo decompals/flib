@@ -11,11 +11,9 @@ mod disambiguate;
 mod libultra;
 mod splat;
 mod symbols;
+mod ipl3;
 
 const TAB: &str = "    ";
-
-// If no base address is specified, use this common one
-const BASE_ADDRESS: u32 = 0x80000400;
 
 const FULL_MASK: u32 = 0xFF_FF_FF_FF;
 const ROUGH_MASK: u32 = 0xFC_00_00_00;
@@ -222,13 +220,22 @@ fn run(config: &Config) -> Result<(), Box<dyn Error>> {
     let mut rom_words = Vec::new();
     let start;
     let end;
+    let base_address: u32;
 
     if !config.binary {
         start = 0x1000;
         end = start + 0x100000;
+
+        let cic_info = ipl3::identify(&romfile);
+
+        let mut entrypoint_word = Vec::new();
+        words_from_bytes(config, &romfile[0x8..0xC], &mut entrypoint_word);
+
+        base_address = cic_info.correct_entrypoint(entrypoint_word[0]);
     } else {
         start = 0;
         end = romfile.len();
+        base_address = config.vram.expect("Must provide a --vram");
     }
 
     let mut files_found = Vec::new(); // length = 1
@@ -295,7 +302,6 @@ fn run(config: &Config) -> Result<(), Box<dyn Error>> {
                     }
 
                     // Symbol parsing
-                    let base_address = config.vram.unwrap_or(BASE_ADDRESS);
                     let mut symbols =
                         symbols::parse_symtab_functions(&obj_file, &file_stem, base_address, index)
                             .unwrap();
