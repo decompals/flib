@@ -15,6 +15,9 @@ mod ipl3;
 
 const TAB: &str = "    ";
 
+// If no base address is specified, use this common one
+const BASE_ADDRESS: u32 = 0x80000400;
+
 const FULL_MASK: u32 = 0xFF_FF_FF_FF;
 const ROUGH_MASK: u32 = 0xFC_00_00_00;
 const J_TYPE_MASK: u32 = 0xFC_00_00_00;
@@ -235,7 +238,7 @@ fn run(config: &Config) -> Result<(), Box<dyn Error>> {
     } else {
         start = 0;
         end = romfile.len();
-        base_address = config.vram.unwrap();
+        base_address = config.vram.unwrap_or(BASE_ADDRESS);
     }
 
     let mut files_found = Vec::new(); // length = 1
